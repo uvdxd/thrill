@@ -421,6 +421,53 @@ public:
     }
 
     /*!
+     * TODO: rephrase
+     * Gathers the value of a serializable type T over all workers and
+     * provides result to all workers.
+     *
+     * \param value The value to use for the allgather operation.
+     * \return The result of the allgather operation.
+     */
+    template <typename T>
+    std::shared_ptr<std::vector<T> > TLX_ATTRIBUTE_WARN_UNUSED_RESULT
+    AllGather(const T& value) {
+        RunTimer run_timer(timer_reduce_);
+        if (enable_stats) ++count_reduce_;
+
+        using SharedVectorT = std::shared_ptr<std::vector<T> >;
+
+        SharedVectorT sp;
+        std::pair<T, SharedVectorT> local(value, sp);
+
+        size_t step = GetNextStep();
+        SetLocalShared(step, &local);
+
+        barrier_.Await(
+            [&]() {
+                RunTimer net_timer(timer_communication_);
+
+                // allocate shared vector of correct final size
+                auto local_gather = std::make_shared<std::vector<T> >(std::vector<T>(num_workers()));
+
+                // gather local values and insert at correct final positions in the vector
+                for (size_t i = 0; i < thread_count_; i++) {
+                    local_gather->at(thread_count_*group_.my_host_rank()+i) =
+                            GetLocalShared<std::pair<T, SharedVectorT> >(step, i)->first;
+                }
+
+                // global allgather
+                group_.AllGatherRecursiveDoublingPowerOfTwo(*local_gather, thread_count_);
+
+                // distribute shared pointer to worker threads
+                for (size_t i = 0; i < thread_count_; i++) {
+                    GetLocalShared<std::pair< T, SharedVectorT> >(step, i)->second = local_gather;
+                }
+            });
+
+        return local.second;
+    }
+
+    /*!
      * Reduces a value of a serializable type T over all workers to the given
      * worker, provided a certain reduce function.
      *

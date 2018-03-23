@@ -175,6 +175,11 @@ public:
 
     /**************************************************************************/
 
+    template <typename T>
+    void AllGatherRecursiveDoublingPowerOfTwo(std::vector<T>& values, size_t n);
+
+    /**************************************************************************/
+
     template <typename T, typename BinarySumOp = std::plus<T> >
     void AllReduceSelect(T& value, BinarySumOp sum_op = BinarySumOp());
 

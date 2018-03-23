@@ -246,6 +246,38 @@ void Group::Broadcast(T& value, size_t origin) {
 }
 
 /******************************************************************************/
+// AllGather Algorithms
+
+template <typename T>
+void Group::AllGatherRecursiveDoublingPowerOfTwo(std::vector<T> &values, size_t n) {
+    size_t num_hosts = this->num_hosts();
+    size_t my_rank 	 = my_host_rank();
+    const int d = static_cast<int>(std::round(std::log2(num_hosts)));
+    assert((size_t)(0x1 << d) == num_hosts);
+
+    for (int j = 0; j < d; ++j) {
+        size_t peer    = my_rank ^ (0x1 << j);
+        size_t snd_pos = ((-1 << j) & my_rank) * n;
+        size_t ins_pos = ((-1 << j) & peer) * n;
+        size_t ins_n   = (0x1 << j) * n;
+
+        std::vector<T> t_send(ins_n);
+        std::copy(
+                    values.begin()+snd_pos,
+                    values.begin()+snd_pos+ins_n,
+                    t_send.begin()
+                    );
+        std::vector<T> t_recv;
+        connection(peer).SendReceive(t_send, &t_recv);
+        std::copy(
+                    t_recv.begin(),
+                    t_recv.end(),
+                    values.begin()+ins_pos
+                    );
+    }
+}
+
+/******************************************************************************/
 // Reduce Algorithms
 
 /*!
