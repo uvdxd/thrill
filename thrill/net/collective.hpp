@@ -249,7 +249,7 @@ void Group::Broadcast(T& value, size_t origin) {
 // AllGather Algorithms
 
 template <typename T>
-void Group::AllGatherRecursiveDoublingPowerOfTwo(std::vector<T> &values, size_t n) {
+void Group::AllGatherRecursiveDoublingPowerOfTwo(T* values, size_t n) {
     size_t num_hosts = this->num_hosts();
     size_t my_rank 	 = my_host_rank();
     const int d = static_cast<int>(std::round(std::log2(num_hosts)));
@@ -257,24 +257,21 @@ void Group::AllGatherRecursiveDoublingPowerOfTwo(std::vector<T> &values, size_t 
 
     for (int j = 0; j < d; ++j) {
         size_t peer    = my_rank ^ (0x1 << j);
+        // index of first element to be sent
         size_t snd_pos = ((-1 << j) & my_rank) * n;
-        size_t ins_pos = ((-1 << j) & peer) * n;
+        // index of first element to be received
+        size_t rcv_pos = ((-1 << j) & peer) * n;
+        // number of elements to be sent/received
         size_t ins_n   = (0x1 << j) * n;
 
-        std::vector<T> t_send(ins_n);
-        std::copy(
-                    values.begin()+snd_pos,
-                    values.begin()+snd_pos+ins_n,
-                    t_send.begin()
-                    );
-        std::vector<T> t_recv;
-        connection(peer).SendReceive(t_send, &t_recv);
-        std::copy(
-                    t_recv.begin(),
-                    t_recv.end(),
-                    values.begin()+ins_pos
-                    );
+        connection(peer).SendReceive(values + snd_pos, values + rcv_pos, ins_n);
     }
+}
+
+template <typename T>
+void Group::AllGatherBruck(T* values, size_t n) {
+    (void) values;
+    (void) n;
 }
 
 /******************************************************************************/
@@ -397,7 +394,7 @@ void Group::AllReduceHypercube(T& value, BinarySumOp sum_op) {
             // hypercube always comes first.
             T recv_data;
             if (my_host_rank() & d) {
-                connection(peer).SendReceive(value, &recv_data);
+                connection(peer).SendReceive(&value, &recv_data, 1);
                 value = sum_op(recv_data, value);
             }
             else {
@@ -432,7 +429,7 @@ template <typename T, typename BinarySumOp>
 T Group::SendReceiveReduce(size_t peer, const T& value, BinarySumOp sum_op) {
     T recv_data;
     if (my_host_rank() > peer) {
-        connection(peer).SendReceive(value, &recv_data);
+        connection(peer).SendReceive(&value, &recv_data, 1);
         return sum_op(recv_data, value);
     }
     else {

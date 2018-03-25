@@ -176,7 +176,10 @@ public:
     /**************************************************************************/
 
     template <typename T>
-    void AllGatherRecursiveDoublingPowerOfTwo(std::vector<T>& values, size_t n);
+    void AllGatherRecursiveDoublingPowerOfTwo(T* values, size_t n);
+
+    template <typename T>
+    void AllGatherBruck(T* values, size_t n);
 
     /**************************************************************************/
 

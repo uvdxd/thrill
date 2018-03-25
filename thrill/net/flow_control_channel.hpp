@@ -421,23 +421,26 @@ public:
     }
 
     /*!
-     * TODO: rephrase
      * Gathers the value of a serializable type T over all workers and
-     * provides result to all workers.
+     * provides result to all workers as a shared pointer to an
+     * array of type T[] and size num_workers().
      *
-     * \param value The value to use for the allgather operation.
-     * \return The result of the allgather operation.
+     * \param value
+     * The value this worker contributes to the allgather operation.
+     * \return
+     * The result of the allgather operation as a shared pointer to an
+     * array of type T[] and size num_workers().
      */
     template <typename T>
-    std::shared_ptr<std::vector<T> > TLX_ATTRIBUTE_WARN_UNUSED_RESULT
+    std::shared_ptr<T> TLX_ATTRIBUTE_WARN_UNUSED_RESULT
     AllGather(const T& value) {
         RunTimer run_timer(timer_reduce_);
         if (enable_stats) ++count_reduce_;
 
-        using SharedVectorT = std::shared_ptr<std::vector<T> >;
+        using SharedArrayT = std::shared_ptr<T>;
 
-        SharedVectorT sp;
-        std::pair<T, SharedVectorT> local(value, sp);
+        SharedArrayT sp;
+        std::pair<T, SharedArrayT> local(value, sp);
 
         size_t step = GetNextStep();
         SetLocalShared(step, &local);
@@ -446,21 +449,23 @@ public:
             [&]() {
                 RunTimer net_timer(timer_communication_);
 
+                size_t n = num_workers();
+
                 // allocate shared vector of correct final size
-                auto local_gather = std::make_shared<std::vector<T> >(std::vector<T>(num_workers()));
+                SharedArrayT local_gather(new T[n], std::default_delete<T[]>());
 
                 // gather local values and insert at correct final positions in the vector
                 for (size_t i = 0; i < thread_count_; i++) {
-                    local_gather->at(thread_count_*group_.my_host_rank()+i) =
-                            GetLocalShared<std::pair<T, SharedVectorT> >(step, i)->first;
+                    local_gather.get()[thread_count_*group_.my_host_rank()+i] =
+                            GetLocalShared<std::pair<T, SharedArrayT> >(step, i)->first;
                 }
 
                 // global allgather
-                group_.AllGatherRecursiveDoublingPowerOfTwo(*local_gather, thread_count_);
+                group_.AllGatherRecursiveDoublingPowerOfTwo(local_gather.get(), thread_count_);
 
                 // distribute shared pointer to worker threads
                 for (size_t i = 0; i < thread_count_; i++) {
-                    GetLocalShared<std::pair< T, SharedVectorT> >(step, i)->second = local_gather;
+                    GetLocalShared<std::pair< T, SharedArrayT> >(step, i)->second = local_gather;
                 }
             });
 

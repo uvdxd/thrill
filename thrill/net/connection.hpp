@@ -274,7 +274,7 @@ public:
     //! SendReceive any serializable POD item T.
     template <typename T>
     typename std::enable_if<std::is_pod<T>::value, void>::type
-    SendReceive(const T& value, T* out_value) {
+    SendReceive(const T* value, T* out_value, size_t n) {
         if (self_verify_ && is_loopback_) {
             // for communication verification, send/receive hash_code.
             size_t send_hash_code = typeid(T).hash_code(), recv_hash_code;
@@ -286,8 +286,11 @@ public:
                           "with different typeid!");
             }
         }
-        // receive PODs directly into memory.
-        SyncSendRecv(&value, sizeof(value), out_value, sizeof(*out_value));
+
+        for (size_t i = 0; i < n; ++i) {
+            // receive PODs directly into memory.
+            SyncSendRecv(value+i, sizeof(*value), out_value+i, sizeof(*out_value));
+        }
     }
 
     template <typename T>
@@ -313,7 +316,7 @@ public:
     typename std::enable_if<
         !std::is_pod<T>::value&&
         data::Serialization<BufferBuilder, T>::is_fixed_size, void>::type
-    SendReceive(const T& value, T* out_value) {
+    SendReceive(const T* value, T* out_value, size_t n) {
         if (self_verify_ && is_loopback_) {
             // for communication verification, send/receive hash_code.
             size_t send_hash_code = typeid(T).hash_code(), recv_hash_code;
@@ -327,29 +330,16 @@ public:
         }
 
         // fixed_size items can be sent/recv without size header
-        static constexpr size_t fixed_size
-            = data::Serialization<BufferBuilder, T>::fixed_size;
-        if (fixed_size < 2 * 1024 * 1024) {
-            // allocate buffer on stack (no allocation)
-            using FixedBuilder = FixedBufferBuilder<fixed_size>;
-            FixedBuilder sendb;
-            data::Serialization<FixedBuilder, T>::Serialize(value, sendb);
-            assert(sendb.size() == fixed_size);
-            std::array<uint8_t, fixed_size> recvb;
-            SyncSendRecv(sendb.data(), sendb.size(),
-                         recvb.data(), recvb.size());
-            BufferReader br(recvb.data(), recvb.size());
-            *out_value = data::Serialization<BufferReader, T>::Deserialize(br);
+        BufferBuilder sendb;
+        for (int i = 0; i < n; ++i) {
+            data::Serialization<BufferBuilder, T>::Serialize(value[i], sendb);
         }
-        else {
-            // too big, use heap allocation
-            BufferBuilder sendb;
-            data::Serialization<BufferBuilder, T>::Serialize(value, sendb);
-            Buffer recvb(data::Serialization<BufferBuilder, T>::fixed_size);
-            SyncSendRecv(sendb.data(), sendb.size(),
-                         recvb.data(), recvb.size());
-            BufferReader br(recvb);
-            *out_value = data::Serialization<BufferReader, T>::Deserialize(br);
+        Buffer recvb(data::Serialization<BufferBuilder, T>::fixed_size * n);
+        SyncSendRecv(sendb.data(), sendb.size(),
+                     recvb.data(), recvb.size());
+        BufferReader br(recvb);
+        for (int i = 0; i < n; ++i) {
+            out_value[i] = data::Serialization<BufferReader, T>::Deserialize(br);
         }
     }
 
@@ -402,7 +392,8 @@ public:
     typename std::enable_if<
         !std::is_pod<T>::value&&
         !data::Serialization<BufferBuilder, T>::is_fixed_size, void>::type
-    SendReceive(const T& value, T* out_value) {
+    SendReceive(const T* value, T* out_value, size_t n) {
+        (void) n;
         if (self_verify_ && is_loopback_) {
             // for communication verification, send/receive hash_code.
             size_t send_hash_code = typeid(T).hash_code(), recv_hash_code;
@@ -416,7 +407,7 @@ public:
         }
         // variable length items must be prefixed with size header
         BufferBuilder sendb;
-        data::Serialization<BufferBuilder, T>::Serialize(value, sendb);
+        data::Serialization<BufferBuilder, T>::Serialize(*value, sendb);
         size_t send_size = sendb.size(), recv_size;
         SyncSendRecv(&send_size, sizeof(send_size),
                      &recv_size, sizeof(recv_size));
