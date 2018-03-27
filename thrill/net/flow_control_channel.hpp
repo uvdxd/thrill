@@ -454,14 +454,29 @@ public:
                 // allocate shared vector of correct final size
                 SharedArrayT local_gather(new T[n], std::default_delete<T[]>());
 
-                // gather local values and insert at correct final positions in the vector
-                for (size_t i = 0; i < thread_count_; i++) {
-                    local_gather.get()[thread_count_*group_.my_host_rank()+i] =
-                            GetLocalShared<std::pair<T, SharedArrayT> >(step, i)->first;
+                // check whether num_hosts is a power-of-two number
+                const int d = static_cast<int>(std::round(std::log2(group().num_hosts())));
+                if ((size_t)(0x1 << d) == group().num_hosts()) {
+                    // gather local values and insert at correct final positions in the vector
+                    for (size_t i = 0; i < thread_count_; i++) {
+                        local_gather.get()[thread_count_*group_.my_host_rank()+i] =
+                                GetLocalShared<std::pair<T, SharedArrayT> >(step, i)->first;
+                    }
+
+                    // global allgather
+                    group_.AllGatherRecursiveDoublingPowerOfTwo(local_gather.get(), thread_count_);
+                }
+                else {
+                    // gather local values and insert at correct final positions in the vector
+                    for (size_t i = 0; i < thread_count_; i++) {
+                        local_gather.get()[i] =
+                                GetLocalShared<std::pair<T, SharedArrayT> >(step, i)->first;
+                    }
+
+                    // global allgather
+                    group_.AllGatherBruck(local_gather.get(), thread_count_);
                 }
 
-                // global allgather
-                group_.AllGatherRecursiveDoublingPowerOfTwo(local_gather.get(), thread_count_);
 
                 // distribute shared pointer to worker threads
                 for (size_t i = 0; i < thread_count_; i++) {

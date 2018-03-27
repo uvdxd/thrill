@@ -253,6 +253,7 @@ void Group::AllGatherRecursiveDoublingPowerOfTwo(T* values, size_t n) {
     size_t num_hosts = this->num_hosts();
     size_t my_rank 	 = my_host_rank();
     const int d = static_cast<int>(std::round(std::log2(num_hosts)));
+    // assert numhosts is a power-of-two number
     assert((size_t)(0x1 << d) == num_hosts);
 
     for (int j = 0; j < d; ++j) {
@@ -265,13 +266,56 @@ void Group::AllGatherRecursiveDoublingPowerOfTwo(T* values, size_t n) {
         size_t ins_n   = (0x1 << j) * n;
 
         connection(peer).SendReceive(values + snd_pos, values + rcv_pos, ins_n);
+//        connection(peer).SyncSendRecv(values + snd_pos, ins_n * sizeof(T),
+//                                      values + rcv_pos, ins_n * sizeof(T));
     }
 }
 
 template <typename T>
 void Group::AllGatherBruck(T* values, size_t n) {
-    (void) values;
-    (void) n;
+    size_t num_hosts = this->num_hosts();
+    size_t size		 = num_hosts * n;
+    size_t my_rank   = my_host_rank();
+//    T * temp         = new T[size];
+    std::vector<T> temp(size);
+
+    for (int i = 0; i < n; ++i) {
+        temp[i] = values[i];
+    }
+
+    for (int j = 0; (0x1 << j) < num_hosts; ++j) {
+        size_t snd_peer = (my_rank + (0x1 << j)) % num_hosts;
+        // incorrect wrapping
+//        size_t rcv_peer = (my_rank - (0x1 << j)) % num_hosts;
+        size_t rcv_peer = (my_rank + num_hosts - (0x1 << j)) % num_hosts;
+        // position for received data
+        size_t ins_pos  = (0x1 << j) * n;
+        // number of elements to be sent/received
+        size_t ins_n    = std::min((0x1 << j) * n, size - ins_pos + 1);
+
+        if ((0x1 << j) & my_rank) {
+//            SendTo(snd_peer, temp);
+//            ReceiveFrom(rcv_peer, temp + ins_pos);
+            connection(rcv_peer).SyncRecv(temp.data() + ins_pos, sizeof(T) * ins_n);
+            connection(snd_peer).SyncSend(temp.data(),           sizeof(T) * ins_n);
+        }
+        else {
+//            ReceiveFrom(rcv_peer, temp + ins_pos);
+//            SendTo(snd_peer, temp);
+            connection(snd_peer).SyncSend(temp.data(),           sizeof(T) * ins_n);
+            connection(rcv_peer).SyncRecv(temp.data() + ins_pos, sizeof(T) * ins_n);
+        }
+    }
+
+    // local reorder: shift whole array by my_rank*n to the left
+//    for (int i = 0; i < size; ++i) {
+//        std::swap(values[i], values[?])
+//    }
+    for (int i = 0; i < size; ++i) {
+        values[i] = temp[(my_rank*n + i) % size];
+    }
+
+//    delete [] temp;
 }
 
 /******************************************************************************/

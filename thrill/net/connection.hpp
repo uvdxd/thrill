@@ -274,7 +274,7 @@ public:
     //! SendReceive any serializable POD item T.
     template <typename T>
     typename std::enable_if<std::is_pod<T>::value, void>::type
-    SendReceive(const T* value, T* out_value, size_t n) {
+    SendReceive(const T* value, T* out_value, size_t n = 1) {
         if (self_verify_ && is_loopback_) {
             // for communication verification, send/receive hash_code.
             size_t send_hash_code = typeid(T).hash_code(), recv_hash_code;
@@ -316,7 +316,7 @@ public:
     typename std::enable_if<
         !std::is_pod<T>::value&&
         data::Serialization<BufferBuilder, T>::is_fixed_size, void>::type
-    SendReceive(const T* value, T* out_value, size_t n) {
+    SendReceive(const T* value, T* out_value, size_t n = 1) {
         if (self_verify_ && is_loopback_) {
             // for communication verification, send/receive hash_code.
             size_t send_hash_code = typeid(T).hash_code(), recv_hash_code;
@@ -392,7 +392,7 @@ public:
     typename std::enable_if<
         !std::is_pod<T>::value&&
         !data::Serialization<BufferBuilder, T>::is_fixed_size, void>::type
-    SendReceive(const T* value, T* out_value, size_t n) {
+    SendReceive(const T* value, T* out_value, size_t n = 1) {
         (void) n;
         if (self_verify_ && is_loopback_) {
             // for communication verification, send/receive hash_code.
