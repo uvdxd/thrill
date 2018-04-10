@@ -329,14 +329,14 @@ public:
 
         // fixed_size items can be sent/recv without size header
         BufferBuilder sendb(n*data::Serialization<BufferBuilder, T>::fixed_size);
-        for (int i = 0; i < n; ++i) {
+        for (size_t i = 0; i < n; ++i) {
             data::Serialization<BufferBuilder, T>::Serialize(value[i], sendb);
         }
         Buffer recvb(n*data::Serialization<BufferBuilder, T>::fixed_size);
         SyncSendRecv(sendb.data(), sendb.size(),
                      recvb.data(), recvb.size());
         BufferReader br(recvb);
-        for (int i = 0; i < n; ++i) {
+        for (size_t i = 0; i < n; ++i) {
             out_value[i] = data::Serialization<BufferReader, T>::Deserialize(br);
         }
     }
@@ -405,7 +405,9 @@ public:
         }
         // variable length items must be prefixed with size header
         BufferBuilder sendb;
-        data::Serialization<BufferBuilder, T>::Serialize(*value, sendb);
+        for (size_t i = 0; i < n; ++i) {
+            data::Serialization<BufferBuilder, T>::Serialize(value[i], sendb);
+        }
         size_t send_size = sendb.size(), recv_size;
         SyncSendRecv(&send_size, sizeof(send_size),
                      &recv_size, sizeof(recv_size));
@@ -414,7 +416,9 @@ public:
         SyncSendRecv(sendb.data(), sendb.size(),
                      recvb.data(), recv_size);
         BufferReader br(recvb);
-        *out_value = data::Serialization<BufferReader, T>::Deserialize(br);
+        for (size_t i = 0; i < n; ++i) {
+            out_value[i] = data::Serialization<BufferReader, T>::Deserialize(br);
+        }
     }
 
     template <typename T>
@@ -483,7 +487,7 @@ public:
         static constexpr size_t fixed_size
             = data::Serialization<BufferBuilder, T>::fixed_size;
         BufferBuilder bb(n*fixed_size);
-        for (int i = 0; i < n; ++i) {
+        for (size_t i = 0; i < n; ++i) {
             data::Serialization<BufferBuilder, T>::Serialize(value[i], bb);
         }
         SyncSend(bb.data(), bb.size());
@@ -503,7 +507,7 @@ public:
         }
         // variable length items must be prefixed with size header
         BufferBuilder bb;
-        for (int i = 0; i < n; ++i) {
+        for (size_t i = 0; i < n; ++i) {
             data::Serialization<BufferBuilder, T>::Serialize(value, bb);
         }
         size_t size = bb.size();
@@ -554,7 +558,7 @@ public:
         Buffer b(n*data::Serialization<BufferBuilder, T>::fixed_size);
         SyncRecv(b.data(), b.size());
         BufferReader br(b);
-        for (int i = 0; i < n; ++i) {
+        for (size_t i = 0; i < n; ++i) {
             out_value[i] = data::Serialization<BufferReader, T>::Deserialize(br);
         }
     }
@@ -582,7 +586,7 @@ public:
         Buffer b(size);
         SyncRecv(b.data(), size);
         BufferReader br(b);
-        for (int i = 0; i < n; ++i) {
+        for (size_t i = 0; i < n; ++i) {
             out_value[i] = data::Serialization<BufferReader, T>::Deserialize(br);
         }
     }
