@@ -422,14 +422,14 @@ public:
 
     /*!
      * Gathers the value of a serializable type T over all workers and
-     * provides result to all workers as a shared pointer to an
-     * array of type T[] and size num_workers().
+     * provides result to all workers as a shared pointer to a
+     * vector.
      *
      * \param value
      * The value this worker contributes to the allgather operation.
      * \return
-     * The result of the allgather operation as a shared pointer to an
-     * array of type T[] and size num_workers().
+     * The result of the allgather operation as a shared pointer to a
+     * vector.
      */
     template <typename T>
     std::shared_ptr<std::vector<T> > TLX_ATTRIBUTE_WARN_UNUSED_RESULT

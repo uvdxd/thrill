@@ -287,10 +287,8 @@ public:
             }
         }
 
-        for (size_t i = 0; i < n; ++i) {
-            // receive PODs directly into memory.
-            SyncSendRecv(value+i, sizeof(*value), out_value+i, sizeof(*out_value));
-        }
+        // receive PODs directly into memory.
+        SyncSendRecv(value, sizeof(*value)*n, out_value, sizeof(*out_value)*n);
     }
 
     template <typename T>

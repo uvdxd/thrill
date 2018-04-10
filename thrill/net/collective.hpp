@@ -273,15 +273,15 @@ void Group::AllGatherRecursiveDoublingPowerOfTwo(T* values, size_t n) {
 template <typename T>
 void Group::AllGatherBruck(T* values, size_t n) {
     size_t num_hosts = this->num_hosts();
-    size_t size		 = num_hosts * n;
     size_t my_rank   = my_host_rank();
+    size_t size	     = num_hosts * n;
     std::vector<T> temp(size);
 
     for (size_t i = 0; i < n; ++i) {
         temp[i] = values[i];
     }
 
-    for (size_t j = 0; (0x1 << j) < num_hosts; ++j) {
+    for (size_t j = 0; (0x1U << j) < num_hosts; ++j) {
         size_t snd_peer = (my_rank + num_hosts - (0x1 << j)) % num_hosts;
         size_t rcv_peer = (my_rank + (0x1 << j)) % num_hosts;
         // position for received data
@@ -301,7 +301,7 @@ void Group::AllGatherBruck(T* values, size_t n) {
 
     // local reorder: shift whole array by my_rank*n to the right
     for (size_t i = 0; i < size; ++i) {
-        values[i] = temp[((i + size - my_rank*n)) % size];
+        values[i] = temp[(i + size - my_rank*n) % size];
     }
 
 }
