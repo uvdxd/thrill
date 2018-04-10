@@ -265,8 +265,7 @@ void Group::AllGatherRecursiveDoublingPowerOfTwo(T* values, size_t n) {
         // number of elements to be sent/received
         size_t ins_n   = (0x1 << j) * n;
 
-        connection(peer).SyncSendRecv(values + snd_pos, ins_n * sizeof(T),
-                                      values + rcv_pos, ins_n * sizeof(T));
+        connection(peer).SendReceive(values + snd_pos, values + rcv_pos, ins_n);
     }
 }
 
@@ -290,12 +289,12 @@ void Group::AllGatherBruck(T* values, size_t n) {
         size_t ins_n    = std::min((0x1 << j) * n, size - ins_pos);
 
         if ((0x1 << j) & my_rank) {
-            connection(rcv_peer).SyncRecv(temp.data() + ins_pos, sizeof(T) * ins_n);
-            connection(snd_peer).SyncSend(temp.data(),           sizeof(T) * ins_n);
+            connection(rcv_peer).ReceiveN(temp.data() + ins_pos, ins_n);
+            connection(snd_peer).SendN(temp.data(), ins_n);
         }
         else {
-            connection(snd_peer).SyncSend(temp.data(),           sizeof(T) * ins_n);
-            connection(rcv_peer).SyncRecv(temp.data() + ins_pos, sizeof(T) * ins_n);
+            connection(snd_peer).SendN(temp.data(), ins_n);
+            connection(rcv_peer).ReceiveN(temp.data() + ins_pos, ins_n);
         }
     }
 
